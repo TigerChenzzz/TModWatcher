@@ -8,7 +8,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace WatcherCore;
 
-public class GenerateCode(TreeItem treeItem, Settings settings) {
+public class GenerateCode(TreeItem treeItem, WatcherSettings settings) {
     private string AssemblyName { get; } = treeItem.FileName;
 
     public string Generate() {
@@ -114,7 +114,7 @@ public class GenerateCode(TreeItem treeItem, Settings settings) {
         }
         #endregion
 
-        if (args.GenerateString) {
+        if (settings.GenerateString) {
             // 指定变量名称并设置初始值
             VariableDeclaratorSyntax variableDeclarator = VariableDeclarator(Identifier(GetCSharpFieldName(parentItem.FilePath)))
                 .WithInitializer(EqualsValueClause(LiteralExpression(SyntaxKind.StringLiteralExpression,
@@ -146,13 +146,13 @@ public class GenerateCode(TreeItem treeItem, Settings settings) {
         CapitalizeFirstLetter(processedExtension);
 
         // 合并文件名和扩展名
-        if (args.GenerateExtension) {
-            if (args.SnakeCase)
+        if (settings.GenerateExtension) {
+            if (settings.SnakeCase)
                 result.Append('_');
             result.Append(processedExtension);
         }
         if (!asset) {
-            result.Append(args.SnakeCase ? "_String" : "String");
+            result.Append(settings.SnakeCase ? "_String" : "String");
         }
 
         // 处理 C# 关键字冲突 (添加前缀)

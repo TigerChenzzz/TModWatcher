@@ -7,15 +7,15 @@ using WatcherCore;
 namespace TModWatcher;
 
 public class Program {
-    public static Args Args { get; private set; } = null!;
     public static WatcherSettings Settings { get; private set; } = null!;
-    public static string WorkPath => Args.Path;
+    public static string WorkPath => Settings.WorkPath;
     public static Watcher Watcher { get; private set; } = null!;
     /// <summary>
     /// 主程序入口
     /// </summary>
     /// <param name="args">命令参数</param>
     public static void Main(string[] args) {
+        PrintTModWatcherWelcome();
         HandleArgs(args);
         Start();
         HandleCommandLoop();
@@ -26,7 +26,7 @@ public class Program {
 
         foreach (var arg in args) {
             if (!arg.StartsWith('-')) {
-                arguments["path"] = arg;
+                arguments["SettingsPath"] = arg;
                 continue;
             }
             var parts = arg.TrimStart('-').Split('=', 2);
@@ -42,6 +42,7 @@ public class Program {
             }
             return defaultValue;
         }
+        /*
         void HandleArgument(string[] argAlters, Action<string> handler){
             foreach (var alter in argAlters) {
                 if (arguments.TryGetValue(alter, out var value)) {
@@ -49,7 +50,6 @@ public class Program {
                 }
             }
         }
-        /*
         Args = new(
             ProcessArgument(["path", "SlnPath", "sln_path"], s => s, AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\')),
             ProcessArgument(["SnakeCase", "snake_case"], s => s == "true", true),
@@ -65,10 +65,10 @@ public class Program {
         */
         var settingsPath = ProcessArgument(["SettingsPath", "settings_path"], s => s, "WatcherSettings.json");
         Settings = WatcherSettings.Load(settingsPath);
+        Settings.Save(settingsPath);
     }
     #region Start
     private static void Start() {
-        PrintTModWatcherWelcome();
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("\n输入指令 exit 或 Ctrl + C 以退出程序");
 
@@ -152,7 +152,7 @@ public class Program {
         Console.ForegroundColor = ConsoleColor.Red;
         Console.Write("MIT开源协议");
         Console.ResetColor();
-        Console.Write("，请自觉遵守协议规则。");
+        Console.WriteLine("，请自觉遵守协议规则。");
     }
 
     /// <summary>

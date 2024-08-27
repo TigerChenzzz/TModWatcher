@@ -18,31 +18,29 @@ public class Watcher {
     private readonly FileSystemWatcher _fileSystemWatcher;
     private readonly TreeItem _root;
 
-    [Obselete]
-    public string FilePath => Settings.Path;
     public string WorkPath => Settings.WorkPath;
     public bool Silent { get; set; }
 
     public StringBuilder Code { get; } = new();
-    private WatcherSettings Settings { get; private set; }
+    private WatcherSettings Settings { get; set; }
 
     public Watcher(WatcherSettings watcherSettings) {
         Settings = watcherSettings;
-        _root = new(Path.GetFileName(FilePath), FilePath, null, true);
+        _root = new(Path.GetFileName(WorkPath), WorkPath, null, true);
 
         Console.WriteLine("\n开始进行编译着色器......");
-        CompileShader(FilePath);
+        CompileAllShader(WorkPath);
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("全部着色器编译完毕");
         Console.ResetColor();
         Console.WriteLine("\n正在生成资源引用...");
-        LoadTree(FilePath, _root);
+        LoadFileTree(WorkPath, _root);
         GenerateCode();
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("生成资源引用完毕");
         Console.ResetColor();
 
-        if (WorkPath != null) _fileSystemWatcher = new(WorkPath); 
+        _fileSystemWatcher = new(WorkPath); 
         _fileSystemWatcher.Created += FileSystemWatcher;
         _fileSystemWatcher.Deleted += FileSystemWatcher;
         _fileSystemWatcher.Renamed += FileSystemWatcher;
@@ -67,7 +65,7 @@ public class Watcher {
     /// </summary>
     private void GenerateCode() {
         var file = Path.Combine(WorkPath, Settings.ResourcePath);
-        if (Path.GetDirectiryName(file) is { } directory)
+        if (Path.GetDirectoryName(file) is { } directory)
             Directory.CreateDirectory(directory);
         FileStream fileStream = File.Create(file);
         using StreamWriter writer = new(fileStream);
@@ -80,7 +78,7 @@ public class Watcher {
     /// <param name="directoryPath">文件夹路径</param>
     /// <param name="treeItem">TreeItem</param>
     private void LoadFileTree(string directoryPath, TreeItem treeItem, bool root = true) {
-        if (!root || !Args.IgnoreRoot) {
+        if (!root || !Settings.IgnoreRoot) {
             foreach (var filePath in Directory.GetFiles(directoryPath)) {
                 if (!Settings.FileTypes.Contains(Path.GetExtension(filePath)))
                     continue;
@@ -179,7 +177,7 @@ public class Watcher {
     }
     private static Task? WatcherTask { get; set; }
     private void FileSystemWatcherAsync(FileSystemEventArgs e) {
-        var relativePath = Path.GetRelativePath(FilePath, e.FullPath);
+        var relativePath = Path.GetRelativePath(WorkPath, e.FullPath);
 
         var directory = Path.GetDirectoryName(relativePath);
 
