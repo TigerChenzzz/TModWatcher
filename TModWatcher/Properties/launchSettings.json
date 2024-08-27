@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TModWatcher": {
+      "commandName": "Project",
+      "commandLineArgs": "\"C:\\Users\\Administrator\\Documents\\My Games\\Terraria\\tModLoader\\ModSources\\Noitaria2\" -snake_case=true -generate_extension=false -ignore_folders=Content -ignore_root=true -generate_string=false"
+    }
+  }
+}

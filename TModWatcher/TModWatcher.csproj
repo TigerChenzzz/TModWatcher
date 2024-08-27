@@ -16,10 +16,8 @@
           <EnableLLVM>true</EnableLLVM>
           <!-- C#12 -->
           <LangVersion>12</LangVersion>
-          <!-- 启用隐式使用指令 -->
-          <ImplicitUsings>enable</ImplicitUsings>
-          <!-- 禁用可以为null的引用类型 -->
-          <Nullable>disable</Nullable>
+          <!-- 启用可以为null的引用类型 -->
+          <Nullable>enable</Nullable>
           <!-- 链路器优化 -->
           <PublishTrimmed>true</PublishTrimmed>
           <!-- 移除未使用程序集 -->
@@ -54,7 +52,7 @@
     </PropertyGroup>-->
 
     <ItemGroup>
-        <ProjectReference Include="..\WatcherCore\WatcherCore.csproj"/>
+        <ProjectReference Include="..\WatcherCore\WatcherCore.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,73 +1,95 @@
-﻿using WatcherCore;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using WatcherCore;
 
 namespace TModWatcher;
 
-public class Program
-{
-    public static string WorkPath { get; private set; }
-    public static bool SnakeCase { get; private set; } = true;
-    public static bool GenerateExtension { get; private set; } = true;
+public class Program {
+    public static Args Args { get; private set; } = null!;
+    public static string WorkPath => Args.Path;
+    public static Watcher Watcher { get; private set; } = null!;
+    public static void Main(string[] args) {
+        HandleArgs(args);
+        Start();
+        HandleCommandLoop();
+    }
 
-    public static void Main(string[] args)
-    {
-        Dictionary<string, string> arguments = [];
+    private static void HandleArgs(string[] args) {
+        Dictionary<string, string> arguments = new(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var arg in args)
-        {
-            var parts = arg.Split('=');
+        foreach (var arg in args) {
+            if (!arg.StartsWith('-')) {
+                arguments["path"] = arg;
+                continue;
+            }
+            var parts = arg.TrimStart('-').Split('=', 2);
             if (parts.Length == 2)
                 arguments[parts[0]] = parts[1];
+
         }
-
-        WorkPath = arguments.TryGetValue("SlnPath", out var path) ? path : AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
-
-#if DEBUG
-        WorkPath = @"C:\Users\TrifingZW\Documents\My Games\Terraria\tModLoader\ModSources\TerrariaModFolder-main";
-#endif
-
-        if (arguments.TryGetValue("snake_case", out var snakeCase))
-            SnakeCase = snakeCase == "true";
-
-        if (arguments.TryGetValue("GenerateExtension", out var generateExtension))
-            GenerateExtension = generateExtension == "true";
-
+        T ProcessArgument<T>(string[] argAlters, Func<string, T> processor, T defaultValue) {
+            foreach (var alter in argAlters) {
+                if (arguments.TryGetValue(alter, out var value)) {
+                    return processor(value);
+                }
+            }
+            return defaultValue;
+        }
+        void HandleArgument(string[] argAlters, Action<string> handler){
+            foreach (var alter in argAlters) {
+                if (arguments.TryGetValue(alter, out var value)) {
+                    handler(value);
+                }
+            }
+        }
+        Args = new(
+            ProcessArgument(["path", "SlnPath", "sln_path"], s => s, AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\')),
+            ProcessArgument(["SnakeCase", "snake_case"], s => s == "true", true),
+            ProcessArgument(["GenerateExtension", "generate_extension"], s => s == "true", true),
+            ProcessArgument(["GenerateString", "generate_string"], s => s == "true", true),
+            ProcessArgument(["IgnoreRoot", "ignore_root"], s => s == "true", false)
+        );
+        HandleArgument(["IgnoreFolders", "ignore_folders", "IgnoreFolder", "ignore_folder"], ignoreFolders => {
+            foreach (var ignore in ignoreFolders.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) {
+                Watcher.IgnoreFolders.Add(ignore.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar));
+            }
+        });
+    }
+    #region Start
+    private static void Start() {
         PrintTModWatcherWelcome();
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("\n输入指令Exit退出程序");
+        Console.WriteLine("\n输入指令 exit 或 Ctrl + C 以退出程序");
 
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.WriteLine("\n正在启动监听程序......");
+        Console.ResetColor();
 
-        if (HasCsprojOrSlnFile(WorkPath))
-        {
-            Watcher watcher = new(WorkPath, SnakeCase, GenerateExtension);
-            Task task = Task.Run(watcher.Start);
-
-            task.ContinueWith(t =>
-            {
-                if (!t.IsFaulted) return;
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine(t.Exception);
-            }, TaskContinuationOptions.OnlyOnFaulted);
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("监听程序启动成功！");
-            Console.WriteLine($"正在监听项目:{WorkPath}");
-        }
-        else
-        {
+        if (!HasCsprojOrSlnFile(WorkPath)) {
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"\n{WorkPath}\n工作目录不是一个有效目录！并没有找到解决方案！");
+            Console.ResetColor();
+            return;
         }
-
-        string command;
-        do
-        {
-            command = Console.ReadLine();
-        } while (command != "exit");
+        try {
+            Watcher = new(Args);
+            Watcher.Start();
+        }
+        catch (Exception e) {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("监听程序启动失败!");
+            Console.WriteLine(e);
+            Console.ResetColor();
+            return;
+        }
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("\n监听程序启动成功！");
+        Console.ResetColor();
+        Console.WriteLine($"\n正在监听项目:{WorkPath}");
     }
-
-    private static void PrintTModWatcherWelcome()
-    {
+    private static void PrintTModWatcherWelcome() {
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("欢迎使用 ");
         Console.ForegroundColor = ConsoleColor.Green;
@@ -119,9 +141,7 @@ public class Program
         Console.ResetColor();
         Console.WriteLine("，请自觉遵守协议规则。");
     }
-
-    public static bool HasCsprojOrSlnFile(string directoryPath)
-    {
+    public static bool HasCsprojOrSlnFile(string directoryPath) {
         if (string.IsNullOrEmpty(directoryPath) || !Directory.Exists(directoryPath))
             return false;
 
@@ -133,4 +153,58 @@ public class Program
             Path.GetExtension(file).Equals(".csproj", StringComparison.OrdinalIgnoreCase) ||
             Path.GetExtension(file).Equals(".sln", StringComparison.OrdinalIgnoreCase));
     }
+    #endregion
+    #region Command
+    private static void HandleCommandLoop() {
+        while (true) {
+            Console.Write("> ");
+            var command = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(command)) {
+                continue;
+            }
+            var splits = command.TrimStart().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (splits.Length == 0) {
+                return;
+            }
+            if (Commands.TryGetValue(splits[0], out var commandAction)) {
+                commandAction(splits.Length > 1 ? splits[1] : null);
+            }
+            else {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("未知命令! 输入 help 以获取命令列表");
+                Console.ResetColor();
+            }
+        }
+    }
+    private static Dictionary<string, Action<string?>> Commands { get; } = new(StringComparer.OrdinalIgnoreCase) {
+        { "help", _ => {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("""
+                help: 获取命令列表
+                silent: 获取或设置是否在文件变化时打印日志
+                exit: 退出程序
+                """);
+            Console.ResetColor();
+        } },
+        { "silent", s => {
+            if (s == null) {
+                Console.WriteLine("目前的静默状态为 " + Watcher.Silent);
+                return;
+            }
+            if (s is "true" or "True" or "1") {
+                Watcher.Silent = true;
+                Console.ResetColor();
+                Console.WriteLine("静默状态已设置为 " + true);
+            }
+            else if (s is "false" or "False" or "0") {
+                Watcher.Silent = false;
+                Console.WriteLine("静默状态已设置为 " + false);
+            }
+            else {
+                Console.WriteLine("参数错误, 请输入 silent true 或者 silent false");
+            }
+        } },
+        { "exit", _ => Environment.Exit(0) },
+    };
+    #endregion
 }
