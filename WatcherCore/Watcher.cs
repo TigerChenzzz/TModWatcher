@@ -156,8 +156,8 @@ public class Watcher {
     private readonly static string COMMAND_START = "> ";
 
     private void FileSystemWatcher(object sender, FileSystemEventArgs e) {
-        var eventInfo = $"{e.Name} {e.FullPath} {e.ChangeType}";
-
+        // 去重
+        var eventInfo = e.FullPath;
         if (eventInfo == _lastEventInfo) {
             var elapsed = DateTime.Now - _lastEventTime;
             if (elapsed.TotalMilliseconds < 100) {
@@ -198,30 +198,40 @@ public class Watcher {
             }
         }
 
-        if (e.ChangeType == WatcherChangeTypes.Changed) {
-            if (!e.FullPath.EndsWith(".fx"))
-                return;
-            TryConsoleWrite(BACK_OFF);
-            TrySetConsoleForegroundColor(ConsoleColor.Blue);
-            TryConsoleWrite("[着色器代码更改]  ");
-            TrySetConsoleForegroundColor(ConsoleColor.Cyan);
-            TryConsoleWrite(relativePath);
-            TrySetConsoleForegroundColor(ConsoleColor.White);
-            TryConsoleWriteLine($"  {DateTime.Now}");
-            // TrySetConsoleForegroundColor(ConsoleColor.Green);
-            // TryConsoleWriteLine("开始重新编译着色器......");
-            Console.ResetColor();
-            //编译着色器
-            CompileShader(e.FullPath);
-            TryConsoleWrite(COMMAND_START);
-            return;
-        }
+        //单独处理fx类型文件
+        if (e.FullPath.EndsWith(".fx")) {
+            switch (e.ChangeType) {
+                case WatcherChangeTypes.Created:
+                    TryConsoleWrite(BACK_OFF);
+                    TrySetConsoleForegroundColor(ConsoleColor.Green);
+                    TryConsoleWrite("[着色器代码创建]  ");
+                    break;
+                case WatcherChangeTypes.Changed:
+                    TryConsoleWrite(BACK_OFF);
+                    TrySetConsoleForegroundColor(ConsoleColor.Blue);
+                    TryConsoleWrite("[着色器代码更改]  ");
+                    break;
+                case WatcherChangeTypes.Renamed:
+                    TryConsoleWrite(BACK_OFF);
+                    TrySetConsoleForegroundColor(ConsoleColor.Blue);
+                    TryConsoleWrite("[着色器代码更名]  ");
+                    break;
+            }
 
-        //编译着色器
-        if (e.FullPath.EndsWith(".fx") && e.ChangeType != WatcherChangeTypes.Deleted) {
-            TryConsoleWrite(BACK_OFF);
-            CompileShader(e.FullPath);
-            TryConsoleWrite(COMMAND_START);
+            if (e.ChangeType != WatcherChangeTypes.Deleted) {
+                //打印文件名称和时间
+                TrySetConsoleForegroundColor(ConsoleColor.Cyan);
+                TryConsoleWrite(relativePath);
+                TrySetConsoleForegroundColor(ConsoleColor.White);
+                TryConsoleWriteLine($"  {DateTime.Now}");
+                //编译着色器
+                TrySetConsoleForegroundColor(ConsoleColor.Green);
+                TryConsoleWriteLine("开始重新编译着色器......");
+                Console.ResetColor();
+                CompileShader(e.FullPath);
+                TryConsoleWrite(COMMAND_START);
+            }
+            return;
         }
 
         //忽略文件类型
@@ -232,9 +242,9 @@ public class Watcher {
         _root.CleanChild();
         LoadFileTree(WorkPath, _root);
         GenerateCode();
-        
+
+        #region 打印监测信息
         TryConsoleWrite(BACK_OFF);
-        // 打印监测信息
         switch (e.ChangeType) {
         case WatcherChangeTypes.Created:
             TrySetConsoleForegroundColor(ConsoleColor.Green);
@@ -260,7 +270,7 @@ public class Watcher {
             TrySetConsoleForegroundColor(ConsoleColor.White);
             TryConsoleWriteLine($"  {DateTime.Now}");
             break;
-        case WatcherChangeTypes.All:
+        case WatcherChangeTypes.Changed:
             break;
         default:
             TrySetConsoleForegroundColor(ConsoleColor.Red);
@@ -273,6 +283,7 @@ public class Watcher {
         }
         Console.ResetColor();
         TryConsoleWrite(COMMAND_START);
+        #endregion
     }
 
     private static void FileSystemWatcherOnError(object sender, ErrorEventArgs e) {
@@ -293,6 +304,11 @@ public class Watcher {
     private void TryConsoleWriteLine(string str) {
         if (!Silent) {
             Console.WriteLine(str);
+        }
+    }
+    private void TryConsoleWriteLine() {
+        if (!Silent) {
+            Console.WriteLine();
         }
     }
     private void TrySetConsoleForegroundColor(ConsoleColor color) {
