@@ -18,14 +18,16 @@ public class Watcher {
     private readonly FileSystemWatcher _fileSystemWatcher;
     private readonly TreeItem _root;
 
-    public string FilePath => Args.Path;
-    public Args Args;
+    [Obselete]
+    public string FilePath => Settings.Path;
+    public string WorkPath => Settings.WorkPath;
     public bool Silent { get; set; }
 
     public StringBuilder Code { get; } = new();
+    private WatcherSettings Settings { get; private set; }
 
-    public Watcher(Args args) {
-        Args = args;
+    public Watcher(WatcherSettings watcherSettings) {
+        Settings = watcherSettings;
         _root = new(Path.GetFileName(FilePath), FilePath, null, true);
 
         Console.WriteLine("\n开始进行编译着色器......");
@@ -40,7 +42,7 @@ public class Watcher {
         Console.WriteLine("生成资源引用完毕");
         Console.ResetColor();
 
-        _fileSystemWatcher = new(FilePath);
+        if (WorkPath != null) _fileSystemWatcher = new(WorkPath); 
         _fileSystemWatcher.Created += FileSystemWatcher;
         _fileSystemWatcher.Deleted += FileSystemWatcher;
         _fileSystemWatcher.Renamed += FileSystemWatcher;
@@ -60,53 +62,70 @@ public class Watcher {
         _fileSystemWatcher.EnableRaisingEvents = false;
     }
 
+    /// <summary>
+    /// 生成C#代码
+    /// </summary>
     private void GenerateCode() {
-        var folderPath = Path.Combine(FilePath, "Resource");
-        if (Directory.Exists(folderPath))
-            Directory.Delete(folderPath, true);
-        Directory.CreateDirectory(folderPath);
-        FileStream fileStream = File.Create(Path.Combine(folderPath, "R.cs"));
+        var file = Path.Combine(WorkPath, Settings.ResourcePath);
+        if (Path.GetDirectiryName(file) is { } directory)
+            Directory.CreateDirectory(directory);
+        FileStream fileStream = File.Create(file);
         using StreamWriter writer = new(fileStream);
-        writer.Write(new GenerateCode(_root, Args).Generate());
+        writer.Write(new GenerateCode(_root, Settings).Generate());
     }
 
-    private void LoadTree(string path, TreeItem treeItem, bool root = true) {
+    /// <summary>
+    /// 读取文件树
+    /// </summary>
+    /// <param name="directoryPath">文件夹路径</param>
+    /// <param name="treeItem">TreeItem</param>
+    private void LoadFileTree(string directoryPath, TreeItem treeItem, bool root = true) {
         if (!root || !Args.IgnoreRoot) {
-            foreach (var file in Directory.GetFiles(path)) {
-                if (!FileTypes.Contains(Path.GetExtension(file)))
+            foreach (var filePath in Directory.GetFiles(directoryPath)) {
+                if (!Settings.FileTypes.Contains(Path.GetExtension(filePath)))
                     continue;
-                var relativePath = Path.GetRelativePath(FilePath, file);
-                treeItem.CreateChild(Path.GetFileNameWithoutExtension(file), file, relativePath, false);
+                var relativePath = Path.GetRelativePath(WorkPath, filePath);
+                treeItem.CreateChild(Path.GetFileNameWithoutExtension(filePath), filePath, relativePath, false);
             }
         }
 
-        foreach (var directory in Directory.GetDirectories(path)) {
-            var relativePath = Path.GetRelativePath(FilePath, directory);
-            if (IgnoreFolders.Contains(relativePath))
+        foreach (var directory in Directory.GetDirectories(directoryPath)) {
+            var relativePath = Path.GetRelativePath(WorkPath, directory);
+            if (Settings.IgnoreFolders.Contains(relativePath))
                 continue;
             TreeItem dirTreeItem = treeItem.CreateChild(Path.GetFileName(directory), directory, relativePath);
-            LoadTree(directory, dirTreeItem, false);
+            LoadFileTree(directory, dirTreeItem, false);
         }
     }
 
-    private void CompileShader(string path) {
-        foreach (var file in Directory.GetFiles(path))
+    /// <summary>
+    /// 编译文件夹内所有着色器
+    /// </summary>
+    /// <param name="directoryPath">文件夹路径</param>
+    private void CompileAllShader(string directoryPath) {
+        if (Settings.IgnoreFolders.Contains(Path.GetFileName(directoryPath)))
+            return;
+        foreach (var file in Directory.GetFiles(directoryPath))
             if (Path.GetExtension(file) == ".fx")
-                CompileFx(file);
+                CompileShader(file);
 
-        foreach (var directory in Directory.GetDirectories(path))
-            CompileShader(directory);
+        foreach (var directory in Directory.GetDirectories(directoryPath))
+            CompileAllShader(directory);
     }
 
-    private void CompileFx(string path) {
+    /// <summary>
+    /// 编译单个着色器
+    /// </summary>
+    /// <param name="filePath">fx文件路径</param>
+    private void CompileShader(string filePath) {
         TrySetConsoleForegroundColor(ConsoleColor.Yellow);
         TryConsoleWrite("[编译着色器]  ");
         TrySetConsoleForegroundColor(ConsoleColor.Magenta);
-        TryConsoleWrite(Path.GetRelativePath(FilePath, path));
+        TryConsoleWrite(Path.GetRelativePath(WorkPath, filePath));
 
         ProcessStartInfo startInfo = new() {
-            FileName = ShaderCompile, // 替换为你要调用的外部工具路径
-            Arguments = $"\"{path}\"", // 替换为要传入的参数
+            FileName = Settings.ShaderCompile, // 替换为你要调用的外部工具路径
+            Arguments = $"\"{filePath}\"", // 替换为要传入的参数
             RedirectStandardError = Silent,
             RedirectStandardOutput = Silent,
         };
@@ -166,7 +185,7 @@ public class Watcher {
 
         //忽略文件夹
         if (string.IsNullOrEmpty(directory)) {
-            if (Args.IgnoreRoot) {
+            if (Settings.IgnoreRoot) {
                 return;
             }
         }
@@ -175,7 +194,7 @@ public class Watcher {
             string? testDirectory = null;
             for (int i = 0; i < splits.Length; ++i) {
                 testDirectory = testDirectory == null ? splits[i] : Path.Combine(testDirectory, splits[i]);
-                if (IgnoreFolders.Contains(testDirectory)) {
+                if (Settings.IgnoreFolders.Contains(testDirectory)) {
                     return;
                 }
             }
@@ -195,7 +214,7 @@ public class Watcher {
             // TryConsoleWriteLine("开始重新编译着色器......");
             Console.ResetColor();
             //编译着色器
-            CompileFx(e.FullPath);
+            CompileShader(e.FullPath);
             TryConsoleWrite(COMMAND_START);
             return;
         }
@@ -203,17 +222,17 @@ public class Watcher {
         //编译着色器
         if (e.FullPath.EndsWith(".fx") && e.ChangeType != WatcherChangeTypes.Deleted) {
             TryConsoleWrite(BACK_OFF);
-            CompileFx(e.FullPath);
+            CompileShader(e.FullPath);
             TryConsoleWrite(COMMAND_START);
         }
 
         //忽略文件类型
-        if (!FileTypes.Contains(Path.GetExtension(e.FullPath)))
+        if (!Settings.FileTypes.Contains(Path.GetExtension(e.FullPath)))
             return;
 
         //重新监测并生成代码
         _root.CleanChild();
-        LoadTree(FilePath, _root);
+        LoadFileTree(WorkPath, _root);
         GenerateCode();
         
         TryConsoleWrite(BACK_OFF);

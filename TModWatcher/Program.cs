@@ -8,8 +8,13 @@ namespace TModWatcher;
 
 public class Program {
     public static Args Args { get; private set; } = null!;
+    public static WatcherSettings Settings { get; private set; } = null!;
     public static string WorkPath => Args.Path;
     public static Watcher Watcher { get; private set; } = null!;
+    /// <summary>
+    /// 主程序入口
+    /// </summary>
+    /// <param name="args">命令参数</param>
     public static void Main(string[] args) {
         HandleArgs(args);
         Start();
@@ -44,6 +49,7 @@ public class Program {
                 }
             }
         }
+        /*
         Args = new(
             ProcessArgument(["path", "SlnPath", "sln_path"], s => s, AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\')),
             ProcessArgument(["SnakeCase", "snake_case"], s => s == "true", true),
@@ -56,6 +62,9 @@ public class Program {
                 Watcher.IgnoreFolders.Add(ignore.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar));
             }
         });
+        */
+        var settingsPath = ProcessArgument(["SettingsPath", "settings_path"], s => s, "WatcherSettings.json");
+        Settings = WatcherSettings.Load(settingsPath);
     }
     #region Start
     private static void Start() {
@@ -67,14 +76,14 @@ public class Program {
         Console.WriteLine("\n正在启动监听程序......");
         Console.ResetColor();
 
-        if (!HasCsprojOrSlnFile(WorkPath)) {
+        if (!HasCsprojOrSlnFile(Settings.WorkPath)) {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"\n{WorkPath}\n工作目录不是一个有效目录！并没有找到解决方案！");
+            Console.WriteLine($"\n{Settings.WorkPath}\n工作目录不是一个有效目录！并没有找到解决方案！");
             Console.ResetColor();
             return;
         }
         try {
-            Watcher = new(Args);
+            Watcher = new(Settings);
             Watcher.Start();
         }
         catch (Exception e) {
@@ -87,8 +96,12 @@ public class Program {
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("\n监听程序启动成功！");
         Console.ResetColor();
-        Console.WriteLine($"\n正在监听项目:{WorkPath}");
+        Console.WriteLine($"\n正在监听项目:{Settings.WorkPath}");
     }
+
+    /// <summary>
+    ///     打印 TModWatcher 欢迎信息
+    /// </summary>
     private static void PrintTModWatcherWelcome() {
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("欢迎使用 ");
@@ -139,8 +152,14 @@ public class Program {
         Console.ForegroundColor = ConsoleColor.Red;
         Console.Write("MIT开源协议");
         Console.ResetColor();
-        Console.WriteLine("，请自觉遵守协议规则。");
+        Console.Write("，请自觉遵守协议规则。");
     }
+
+    /// <summary>
+    ///     判断指定目录下是否存在 .csproj 或 .sln 文件
+    /// </summary>
+    /// <param name="directoryPath">文件夹路径</param>
+    /// <returns>文件夹是否存在 .csproj 或 .sln 文件布尔值</returns>
     public static bool HasCsprojOrSlnFile(string directoryPath) {
         if (string.IsNullOrEmpty(directoryPath) || !Directory.Exists(directoryPath))
             return false;

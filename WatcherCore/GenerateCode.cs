@@ -8,7 +8,7 @@ using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace WatcherCore;
 
-public class GenerateCode(TreeItem treeItem, Args args) {
+public class GenerateCode(TreeItem treeItem, Settings settings) {
     private string AssemblyName { get; } = treeItem.FileName;
 
     public string Generate() {
