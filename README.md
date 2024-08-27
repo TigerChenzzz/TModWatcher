@@ -1,10 +1,10 @@
 # TModWatcher
 
 <div>
-	<img src="https://img.shields.io/github/languages/top/TrifingZW/TModWatcher?color=green" alt="languages-top" />
-    <img alt="license" src="https://img.shields.io/github/license/TrifingZW/TModWatcher"/>
-    <img alt="commit" src="https://img.shields.io/github/commit-activity/m/TrifingZW/TModWatcher?color=%23ff69b4"/>
-    <img alt="stars" src="https://img.shields.io/github/stars/TrifingZW/TModWatcher?style=social">
+	<img src="https://img.shields.io/github/languages/top/TigerChenzzz/TModWatcher?color=green" alt="languages-top" />
+    <img alt="license" src="https://img.shields.io/github/license/TigerChenzzz/TModWatcher"/>
+    <img alt="commit" src="https://img.shields.io/github/commit-activity/m/TigerChenzzz/TModWatcher?color=%23ff69b4"/>
+    <img alt="stars" src="https://img.shields.io/github/stars/TigerChenzzz/TModWatcher?style=social">
 </div>
 
 
